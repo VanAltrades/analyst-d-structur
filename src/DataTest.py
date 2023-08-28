@@ -4,6 +4,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import pandas as pd
 from causalimpact import CausalImpact
+# https://towardsdatascience.com/causal-inference-using-difference-in-differences-causal-impact-and-synthetic-control-f8639c408268
 
 class DataTest(Data):
     def __init__(self,sql_path,project,dataset,table,date_start,date_end,dim_sql_date, dim_sql_index, dim_sql_dimensions,kpis,aggs,where_clause,
@@ -151,11 +152,7 @@ def get_synthetic_control():
     https://towardsdatascience.com/causal-inference-with-synthetic-control-in-python-4a79ee636325
     https://github.com/OscarEngelbrektson/SyntheticControlMethods/blob/master/examples/user_guide.ipynb
     https://towardsdatascience.com/causal-inference-with-synthetic-control-using-python-and-sparsesc-9f1c58d906e6
-    """
-    return
-
-def get_a_causal_impact(date_change):
-    """
-    https://towardsdatascience.com/causal-inference-using-difference-in-differences-causal-impact-and-synthetic-control-f8639c408268
+    https://www.kaggle.com/code/aayushmnit/synthetic-control-using-python-and-sparsesc
+    https://github.com/microsoft/SparseSC
     """
     return
