@@ -1,9 +1,16 @@
 from .Data import Data
 import plotly.express as px
 import numpy as np
-from datetime import datetime, timedelta
 import pandas as pd
+from datetime import datetime, timedelta
+# CausalImpact
 from causalimpact import CausalImpact
+# SyntheticControl
+import SparseSC
+import warnings
+import plotly.graph_objects as pgo
+pd.set_option("display.max_columns", None)
+warnings.filterwarnings('ignore')
 # https://towardsdatascience.com/causal-inference-using-difference-in-differences-causal-impact-and-synthetic-control-f8639c408268
 
 class DataTest(Data):
@@ -58,6 +65,13 @@ class DataTest(Data):
         # Format the result as "YYYY-MM-DD"
         return previous_day.strftime("%Y-%m-%d")        
 
+#  ██████╗ █████╗ ██╗   ██╗███████╗ █████╗ ██╗         ██╗███╗   ███╗██████╗  █████╗  ██████╗████████╗
+# ██╔════╝██╔══██╗██║   ██║██╔════╝██╔══██╗██║         ██║████╗ ████║██╔══██╗██╔══██╗██╔════╝╚══██╔══╝
+# ██║     ███████║██║   ██║███████╗███████║██║         ██║██╔████╔██║██████╔╝███████║██║        ██║   
+# ██║     ██╔══██║██║   ██║╚════██║██╔══██║██║         ██║██║╚██╔╝██║██╔═══╝ ██╔══██║██║        ██║   
+# ╚██████╗██║  ██║╚██████╔╝███████║██║  ██║███████╗    ██║██║ ╚═╝ ██║██║     ██║  ██║╚██████╗   ██║   
+#  ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝╚══════╝    ╚═╝╚═╝     ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝   ╚═╝  
+
     def get_causal_impact(self, test_group="Test", metric_field="visits", agg="sum"):
         _df = self._data_sql.loc[self._data_sql['test_group']==test_group] 
         _df = _df.groupby(self._dim_sql_date, as_index=False).agg({metric_field:[agg]})
@@ -72,6 +86,12 @@ class DataTest(Data):
         ci.plot()
         print(ci.summary(output='report'))
 
+# ██████╗ ██████╗ ███████╗    ██████╗  ██████╗ ███████╗████████╗     ██████╗ ██████╗ ███╗   ███╗██████╗  █████╗ ██████╗ ███████╗
+# ██╔══██╗██╔══██╗██╔════╝    ██╔══██╗██╔═══██╗██╔════╝╚══██╔══╝    ██╔════╝██╔═══██╗████╗ ████║██╔══██╗██╔══██╗██╔══██╗██╔════╝
+# ██████╔╝██████╔╝█████╗█████╗██████╔╝██║   ██║███████╗   ██║       ██║     ██║   ██║██╔████╔██║██████╔╝███████║██████╔╝█████╗  
+# ██╔═══╝ ██╔══██╗██╔══╝╚════╝██╔═══╝ ██║   ██║╚════██║   ██║       ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██╔══██║██╔══██╗██╔══╝  
+# ██║     ██║  ██║███████╗    ██║     ╚██████╔╝███████║   ██║       ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ██║  ██║██║  ██║███████╗
+# ╚═╝     ╚═╝  ╚═╝╚══════╝    ╚═╝      ╚═════╝ ╚══════╝   ╚═╝        ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝
 
     def get_data_pre_post(self):
         # Convert 'date' column to datetime type for comparison
@@ -145,6 +165,156 @@ def get_length_estimate():
 
 def get_diff_in_diff():
     return
+
+# ███████╗██╗   ██╗███╗   ██╗████████╗██╗  ██╗███████╗████████╗██╗ ██████╗     ██████╗ ██████╗ ███╗   ██╗████████╗██████╗  ██████╗ ██╗     
+# ██╔════╝╚██╗ ██╔╝████╗  ██║╚══██╔══╝██║  ██║██╔════╝╚══██╔══╝██║██╔════╝    ██╔════╝██╔═══██╗████╗  ██║╚══██╔══╝██╔══██╗██╔═══██╗██║     
+# ███████╗ ╚████╔╝ ██╔██╗ ██║   ██║   ███████║█████╗     ██║   ██║██║         ██║     ██║   ██║██╔██╗ ██║   ██║   ██████╔╝██║   ██║██║     
+# ╚════██║  ╚██╔╝  ██║╚██╗██║   ██║   ██╔══██║██╔══╝     ██║   ██║██║         ██║     ██║   ██║██║╚██╗██║   ██║   ██╔══██╗██║   ██║██║     
+# ███████║   ██║   ██║ ╚████║   ██║   ██║  ██║███████╗   ██║   ██║╚██████╗    ╚██████╗╚██████╔╝██║ ╚████║   ██║   ██║  ██║╚██████╔╝███████╗
+# ╚══════╝   ╚═╝   ╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝ ╚═════╝     ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚══════╝
+                                                                                                                                         
+
+def format_synthetic_control_df(self,col_metric="visits",col_breakout="breakout"):
+    # use sql_path="../src/sql/data_test_synthetic_control.sql"
+    df = self._data_sql.pivot(index=col_breakout, columns=self._dim_sql_date, values=col_metric)
+    df.fillna(0,inplace=True)
+    return df
+
+def get_sythethic_control_object(self,test_id="Test",col_metric="visits",col_breakout="breakout"):
+    df = format_synthetic_control_df(self,col_metric,col_breakout)
+    sc_new = SparseSC.fit_fast( 
+        features=df.iloc[:,df.columns <= self._date_test].values,
+        targets=df.iloc[:,df.columns > self._date_test].values,
+        treated_units=[idx for idx, val in enumerate(df.index.values) if val == test_id]
+    )
+    return sc_new
+
+def plot_synthetic_control_gap(self, synth_df, test_id="Test"):
+    plot_df = synth_df.loc[synth_df.index == test_id].T.reset_index(drop=False)
+    plot_df["Synthetic_Control"] = synth_df.loc[synth_df.index != test_id].mean(axis=0).values
+
+
+    fig = px.line(
+            data_frame = plot_df, 
+            x = self._dim_sql_date, 
+            y = [test_id,"Synthetic_Control"], 
+            template = "plotly_dark")
+
+    fig.add_trace(
+        pgo.Scatter(
+            x=[self._date_test,self._date_test],
+            y=[plot_df[test_id].min()*0.98,plot_df['Synthetic_Control'].max()*1.02], 
+            line={
+                'dash': 'dash',
+            }, name='Change Event'
+        ))
+    fig.update_layout(
+            title  = {
+                'text':"Gap in Test v. Synthetic Control Visits",
+                'y':0.95,
+                'x':0.5,
+            },
+            legend =  dict(y=1, x= 0.8, orientation='v'),
+            legend_title = "_legend_title_",
+            xaxis_title="Date", 
+            yaxis_title="Visits Trend",
+            font = dict(size=15)
+    )
+    fig.show(renderer='notebook')
+    # return
+
+def get_synthetic_control_time_series_df(self, synth_df, test_id="Test"):
+    ## creating required features
+    features = synth_df.iloc[:,synth_df.columns <= self._date_test].values
+    targets = synth_df.iloc[:,synth_df.columns > self._date_test].values
+    treated_units = [idx for idx, val in enumerate(synth_df.index.values) if val == test_id] # [2]
+
+    ## Fit fast model for fitting Synthetic controls
+    sc_model = SparseSC.fit_fast( 
+        features=features,
+        targets=targets,
+        treated_units=treated_units
+    )
+
+    result = synth_df.loc[synth_df.index == test_id].T.reset_index(drop=False)
+    result.columns = ["date", "Observed"] 
+    result['Synthetic_Control'] = sc_model.predict(synth_df.values)[treated_units,:][0]
+    result['Observed'] = result['Observed'].astype(int)
+    result['Synthetic_Control'] = result['Synthetic_Control'].astype(int)
+    return result
+    
+
+def plot_synthetic_control_assessment(self, result, col_metric="visits"):
+    fig = px.line(
+            data_frame = result, 
+            x = "date", 
+            y = ["Observed","Synthetic_Control"], 
+            template = "plotly_dark",)
+
+    fig.add_trace(
+        pgo.Scatter(
+            x=[self._date_test,self._date_test],
+            y=[result.Observed.min()*0.98,result.Observed.max()*1.02], 
+            line={
+                'dash': 'dash',
+            }, name='Change Event'
+        ))
+    fig.update_layout(
+            title  = {
+                'text':"Synthetic Control Assessment",
+                'y':0.95,
+                'x':0.5,
+            },
+            legend =  dict(y=1, x= 0.8, orientation='v'),
+            legend_title = "",
+            xaxis_title="Date", 
+            yaxis_title=f"{col_metric}",
+            font = dict(size=15)
+    )
+    fig.show(renderer='notebook')
+    # return
+
+def plot_synthetic_control_difference_across_time(self, result):
+    #| code-fold: true
+    #| fig-cap: Fig - Gap in Per-capita cigarette sales in California w.r.t Synthetic Control
+
+    result['Test Effect'] = result['Observed'] - result['Synthetic_Control']
+    fig = px.line(
+            data_frame = result, 
+            x = "date", 
+            y = "Test Effect", 
+            template = "plotly_dark",)
+    fig.add_hline(0)
+    fig.add_trace(
+        pgo.Scatter(
+            x=[self._date_test,self._date_test],
+            y=[result["Test Effect"].min()*0.98,result["Test Effect"].max()*1.02], 
+            line={
+                'dash': 'dash',
+            }, name='Change Event'
+        ))
+
+    fig.update_layout(
+            title  = {
+                'text':"Difference across time",
+                'y':0.95,
+                'x':0.5,
+            },
+            legend =  dict(y=1, x= 0.8, orientation='v'),
+            legend_title = "_legend_title_2_",
+            xaxis_title="Date", 
+            yaxis_title="Gap in Visits",
+            font = dict(size=15)
+    )
+    fig.show(renderer='notebook')
+    # return
+
+def get_synthetic_control_treatment_effect(self, result, col_metric="visits"):
+    print(f"Effect of Change Event w.r.t Synthetic Control => {np.round(result.loc[result[self._dim_sql_date]==self._date_end,'Test Effect'].values[0],1)} {col_metric}")
+    # return
+
+
+
 
 def get_synthetic_control():
     """

@@ -218,7 +218,7 @@ class Data:
         return sql_string
     
 
-    def get_data_sql(self):
+    def get_data_sql(self, sql_custom=None):
         """
         Query Google BigQuery and return a Pandas DataFrame object
 
@@ -226,14 +226,23 @@ class Data:
             self._client : BigQuery client from Class instance
             self._sql_file_string_formatted : string
                 sql code string to send to BigQuery
+            sql_custom : str
+                If None then use dynamic SQL insertion provided by class instance variables, else provide custom SQL str as an argument
 
         Returns:
             self._data_sql : pd.DataFrame
                 pandas dataframe object from the sql response
         
         """
-        query_job=self._client.query(self._sql_file_string_formatted) 
-        results = query_job.result()
-        df = results.to_dataframe()
-        df
-        self._data_sql = df
+        if sql_custom is None:
+            query_job=self._client.query(self._sql_file_string_formatted) 
+            results = query_job.result()
+            df = results.to_dataframe()
+            df
+            self._data_sql = df
+        else:
+            query_job=self._client.query(sql_custom) 
+            results = query_job.result()
+            df = results.to_dataframe()
+            df
+            self._data_sql = df            

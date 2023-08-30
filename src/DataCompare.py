@@ -58,3 +58,8 @@ class DataCompare(Data):
         return
     def get_scatter():
         return
+    
+    def get_mix_shift():
+        # Mix Shift (v2)
+        # categorical pre-post dataframe required
+        return
