@@ -73,6 +73,34 @@ class DataTest(Data):
 #  ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝╚══════╝    ╚═╝╚═╝     ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝   ╚═╝  
 
     def get_causal_impact(self, test_group="Test", metric_field="visits", agg="sum"):
+        """
+        Analyzes the causal impact of a specified metric for a given test group over time.
+
+        Parameters:
+            - test_group (str): The name of the test group to analyze. Default is "Test".
+            - metric_field (str): The name of the metric field to analyze. Default is "visits".
+            - agg (str): The aggregation method for the metric data (e.g., "sum", "mean"). Default is "sum".
+
+        This method performs the following steps:
+            1. Filters the dataset to select data points associated with the specified test group.
+            2. Aggregates the metric data over time, using the specified aggregation method.
+            3. Prepares the data for analysis, ensuring it has the correct data types and structure.
+            4. Computes the causal impact analysis using the CausalImpact library.
+            5. Prints a summary of the causal impact analysis, including statistical results.
+            6. Plots the causal impact analysis to visualize the effects.
+            7. Prints a report summarizing the causal impact analysis.
+
+        The CausalImpact library is used to assess the causal effect of a change or intervention on the specified metric.
+        The analysis is based on a pre-period and post-period comparison, and it provides insights into the impact of the
+        intervention, along with statistical significance.
+
+        Note:
+        - Ensure that the dataset (self._data_sql) and relevant parameters are properly set before calling this method.
+        - The results of the analysis are printed to the console for inspection.
+
+        Returns:
+            None
+        """
         _df = self._data_sql.loc[self._data_sql['test_group']==test_group] 
         _df = _df.groupby(self._dim_sql_date, as_index=False).agg({metric_field:[agg]})
         _df = _df[[self._dim_sql_date,metric_field]]
@@ -94,6 +122,27 @@ class DataTest(Data):
 # ╚═╝     ╚═╝  ╚═╝╚══════╝    ╚═╝      ╚═════╝ ╚══════╝   ╚═╝        ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝
 
     def get_data_pre_post(self):
+        """
+        Extracts and separates data into pre-test and post-test periods based on date criteria.
+
+        This method performs the following steps:
+        1. Converts the 'date' column in the dataset to a datetime type for date comparison.
+        2. Filters and extracts data points that occur on or before the specified 'self._date_test_prior'.
+        This data represents the pre-test period.
+        3. Filters and extracts data points that occur on or after the specified 'self._date_test'.
+        This data represents the post-test period.
+        4. Stores the pre-test data in 'self._data_pre' and the post-test data in 'self._data_post'.
+
+        The separation of data into pre-test and post-test periods allows for subsequent analysis of the causal impact
+        of an intervention or change on the specified dataset, typically in the context of A/B testing or similar studies.
+
+        Note:
+        - Ensure that the dataset (self._data_sql) and relevant date criteria (self._date_test_prior and self._date_test)
+        are properly set before calling this method.
+
+        Returns:
+            None
+        """
         # Convert 'date' column to datetime type for comparison
         self._data_sql[self._dim_sql_date] = pd.to_datetime(self._data_sql[self._dim_sql_date])
 
@@ -104,6 +153,38 @@ class DataTest(Data):
         self._data_post = post_df
 
     def get_data_pre_post_comparison(self, dimension_column: str, metric_column : str, metric_column_agg : str = 'sum'):
+        """
+        Performs data comparison and analysis between pre-test and post-test periods based on specified dimensions and metrics.
+
+        Parameters:
+            - dimension_column (str): The name of the dimension column used for grouping and comparison.
+            - metric_column (str): The name of the metric column for which changes are analyzed.
+            - metric_column_agg (str, optional): The aggregation method for the metric data (e.g., 'sum', 'mean').
+            Default is 'sum'.
+
+        This method performs the following steps:
+        1. Converts the 'date' column in the dataset to a datetime type for date comparison.
+        2. Filters and extracts data points that occur on or before the specified 'self._date_test_prior'.
+        This data represents the pre-test period.
+        3. Filters and extracts data points that occur on or after the specified 'self._date_test'.
+        This data represents the post-test period.
+        4. Aggregates the metric data for both pre-test and post-test periods based on the specified dimension column
+        and aggregation method.
+        5. Calculates the differences ('delta') between post-test and pre-test metric values.
+        6. Calculates the percent changes ('%delta') between post-test and pre-test metric values as percentages.
+        7. Returns a DataFrame containing the comparison results, including dimensions, metrics, deltas, and percent changes.
+
+        This method enables the analysis of how a specified metric changes between the pre-test and post-test periods,
+        broken down by different dimensions. It provides insights into the impact of an intervention or change
+        on the specified metric.
+
+        Note:
+        - Ensure that the dataset (self._data_sql) and relevant date criteria (self._date_test_prior and self._date_test)
+        are properly set before calling this method.
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the comparison results.
+        """
         # Convert 'date' column to datetime type for comparison
         self._data_sql[self._dim_sql_date] = pd.to_datetime(self._data_sql[self._dim_sql_date])
 
@@ -175,12 +256,63 @@ class DataTest(Data):
                                                                                                                                             
 
     def format_synthetic_control_df(self,col_metric="visits",col_breakout="breakout"):
+        """
+        Formats and prepares the dataset for synthetic control analysis.
+
+        Parameters:
+            - col_metric (str, optional): The name of the metric column to use in the analysis. Default is "visits".
+            - col_breakout (str, optional): The name of the breakout (dimension) column to use. Default is "breakout".
+
+        This method performs the following steps:
+        1. Pivots the dataset to create a matrix where rows represent different breakouts (dimensions),
+        columns represent dates, and the values are the specified metric.
+        2. Fills any missing values (NaN) in the resulting matrix with zeros to ensure a complete dataset.
+        3. Returns the formatted DataFrame suitable for use in synthetic control analysis.
+
+        The purpose of this method is to transform the data into a format that is compatible with synthetic control
+        analysis, which typically requires data organized in a matrix-like structure. This analysis technique is used
+        to estimate the counterfactual effect of an intervention or treatment by comparing it to a weighted combination
+        of similar units that did not receive the treatment.
+
+        Note:
+        - Ensure that the dataset (self._data_sql) and relevant column names are properly set before calling this method.
+
+        Returns:
+            pandas.DataFrame: A formatted DataFrame ready for synthetic control analysis.
+        """
         # use sql_path="../src/sql/data_test_synthetic_control.sql"
         df = self._data_sql.pivot(index=col_breakout, columns=self._dim_sql_date, values=col_metric)
         df.fillna(0,inplace=True)
         return df
 
     def get_sythethic_control_object(self,test_id="Test",col_metric="visits",col_breakout="breakout"):
+        """
+        Constructs and returns a synthetic control object for causal analysis.
+
+        Parameters:
+            - test_id (str, optional): The identifier of the test group. Default is "Test".
+            - col_metric (str, optional): The name of the metric column to use in the analysis. Default is "visits".
+            - col_breakout (str, optional): The name of the breakout (dimension) column to use. Default is "breakout".
+
+        This method performs the following steps:
+        1. Calls the `format_synthetic_control_df()` method to format and prepare the dataset for synthetic control analysis.
+        2. Constructs a synthetic control object using the SparseSC.fit_fast() method, which is a component
+            of the synthetic control analysis library.
+        3. The constructed synthetic control object is trained using the pre-intervention data of the specified
+            test group, considering the specified metric and breakout dimensions.
+
+        The purpose of this method is to create a synthetic control object that can be used to estimate the causal
+        effect of an intervention or treatment (specified by the `test_id`) on the metric of interest. The synthetic
+        control method compares the treated unit (test group) to a weighted combination of control units to infer
+        the counterfactual outcome in the absence of the intervention.
+
+        Note:
+        - Ensure that the dataset (self._data_sql) and relevant parameters are properly set before calling this method.
+
+        Returns:
+            SparseSC: A synthetic control object ready for causal analysis.
+        """
+
         df = self.format_synthetic_control_df(col_metric,col_breakout)
         sc_new = SparseSC.fit_fast( 
             features=df.iloc[:,df.columns <= self._date_test].values,
@@ -190,6 +322,31 @@ class DataTest(Data):
         return sc_new
 
     def plot_synthetic_control_gap(self, synth_df, test_id="Test"):
+        """
+        Generates a plot to visualize the gap between the test group and synthetic control in terms of the specified metric.
+
+        Parameters:
+            - synth_df (pandas.DataFrame): The DataFrame containing synthetic control and test group data.
+            - test_id (str, optional): The identifier of the test group. Default is "Test".
+
+        This method performs the following steps:
+        1. Selects data from the `synth_df` DataFrame corresponding to the test group (`test_id`) and the synthetic control.
+        2. Calculates the mean of the synthetic control values for each date.
+        3. Creates a line plot using Plotly Express (`px.line`) to visualize the trends of the test group and synthetic control.
+        4. Adds a dashed vertical line to indicate the change event date (intervention date).
+        5. Customizes the plot title, legend, axis labels, and font size.
+        6. Displays the generated plot.
+
+        The purpose of this method is to provide a visual representation of the gap between the test group and synthetic control
+        in terms of a specified metric over time. This helps in understanding the impact of an intervention or treatment on the
+        test group compared to the synthetic control.
+
+        Note:
+        - Ensure that the `synth_df` DataFrame and relevant parameters are properly set before calling this method.
+
+        Returns:
+            None
+        """
         plot_df = synth_df.loc[synth_df.index == test_id].T.reset_index(drop=False)
         plot_df["Synthetic_Control"] = synth_df.loc[synth_df.index != test_id].mean(axis=0).values
 
@@ -224,6 +381,31 @@ class DataTest(Data):
         # return
 
     def get_synthetic_control_time_series_df(self, synth_df, test_id="Test"):
+        """
+        Generates a time series DataFrame with observed and synthetic control values for the specified test group.
+
+        Parameters:
+            - synth_df (pandas.DataFrame): The DataFrame containing synthetic control and test group data.
+            - test_id (str, optional): The identifier of the test group. Default is "Test".
+
+        This method performs the following steps:
+        1. Extracts features and targets from the `synth_df` DataFrame based on the specified test date.
+        2. Constructs a synthetic control model using the SparseSC.fit_fast() method, considering the specified test group.
+        3. Creates a time series DataFrame with columns for date, observed values, and synthetic control values.
+        4. Populates the time series DataFrame with observed and synthetic control values.
+        5. Converts observed and synthetic control values to integer data types.
+        6. Returns the resulting time series DataFrame.
+
+        The purpose of this method is to provide a time series representation of observed and synthetic control values for
+        the specified test group. This allows for visualizing and comparing the actual and synthetic control trends over time.
+
+        Note:
+        - Ensure that the `synth_df` DataFrame and relevant parameters are properly set before calling this method.
+
+        Returns:
+            pandas.DataFrame: A time series DataFrame with observed and synthetic control values.
+        """
+
         ## creating required features
         # features = synth_df.iloc[:,synth_df.columns <= datetime.datetime.strptime(self._date_test, '%Y-%m-%d')].values
         # targets = synth_df.iloc[:,synth_df.columns > datetime.datetime.strptime(self._date_test, '%Y-%m-%d')].values
@@ -247,6 +429,31 @@ class DataTest(Data):
         
 
     def plot_synthetic_control_assessment(self, result, col_metric="visits"):
+        """
+        Generates a plot to assess the performance of the synthetic control model.
+
+        Parameters:
+            - result (pandas.DataFrame): A time series DataFrame containing observed and synthetic control values.
+            - col_metric (str, optional): The name of the metric column to visualize. Default is "visits".
+
+        This function performs the following steps:
+        1. Creates a line plot using Plotly Express (`px.line`) to visualize the observed and synthetic control values
+        over time.
+        2. Adds a dashed vertical line to indicate the change event date (intervention date).
+        3. Customizes the plot title, legend, axis labels, and font size.
+        4. Displays the generated plot for assessing the performance of the synthetic control model.
+
+        The purpose of this function is to provide a visual assessment of how well the synthetic control model replicates
+        the observed data. It allows for evaluating the effectiveness of the model in capturing the impact of an intervention
+        or treatment on the specified metric.
+
+        Note:
+        - Ensure that the `result` DataFrame containing observed and synthetic control values is properly prepared
+        before calling this function.
+
+        Returns:
+            None
+        """
         fig = px.line(
                 data_frame = result, 
                 x = "date", 
@@ -277,6 +484,32 @@ class DataTest(Data):
         # return
 
     def plot_synthetic_control_difference_across_time(self, result):
+        """
+        Generates a plot to visualize the difference in metrics between observed and synthetic control values over time.
+
+        Parameters:
+            - result (pandas.DataFrame): A time series DataFrame containing observed and synthetic control values.
+
+        This function performs the following steps:
+        1. Computes the difference between the observed and synthetic control values at each time point and adds it as
+        a new column named 'Test Effect' to the DataFrame.
+        2. Creates a line plot using Plotly Express (`px.line`) to visualize the difference in metrics over time.
+        3. Adds a horizontal line at the y-axis value of 0 to indicate the baseline (no difference) level.
+        4. Adds a dashed vertical line to indicate the change event date (intervention date).
+        5. Customizes the plot title, legend, axis labels, and font size.
+        6. Displays the generated plot for assessing the difference in metrics across time.
+
+        The purpose of this function is to provide a visual representation of how the observed metrics deviate from
+        the synthetic control metrics over time. It allows for assessing the impact of an intervention or treatment
+        on the specified metric.
+
+        Note:
+        - Ensure that the `result` DataFrame containing observed and synthetic control values is properly prepared
+        before calling this function.
+
+        Returns:
+            None
+        """
         #| code-fold: true
         #| fig-cap: Fig - Gap in Per-capita cigarette sales in California w.r.t Synthetic Control
 
@@ -312,6 +545,29 @@ class DataTest(Data):
         # return
 
     def get_synthetic_control_treatment_effect(self, result, col_metric="visits"):
+        """
+        Calculates and prints the treatment effect of a change event with respect to the synthetic control.
+
+        Parameters:
+            - result (pandas.DataFrame): A time series DataFrame containing observed and synthetic control values.
+            - col_metric (str, optional): The name of the metric column for which the treatment effect is calculated.
+            Default is "visits".
+
+        This function performs the following steps:
+        1. Extracts the treatment effect value at the end of the time series, which represents the impact of a change event.
+        2. Rounds the treatment effect value to one decimal place for clarity.
+        3. Prints the treatment effect along with the specified metric column.
+
+        The purpose of this function is to provide a summary of the treatment effect of a change event with respect to the
+        synthetic control. It calculates and presents the impact of the intervention or treatment on the specified metric.
+
+        Note:
+        - Ensure that the `result` DataFrame containing observed and synthetic control values is properly prepared
+        before calling this function.
+
+        Returns:
+            None
+        """
         print(f"Effect of Change Event w.r.t Synthetic Control => {np.round(result.loc[result[self._dim_sql_date]==self._date_end,'Test Effect'].values[0],1)} {col_metric}")
         # return
 
