@@ -64,6 +64,38 @@ class DataTest(Data):
         previous_day = date_test - one_day
         # Format the result as "YYYY-MM-DD"
         return previous_day.strftime("%Y-%m-%d")        
+    
+    def estimate_time_to_significance(df, effect_size, alpha=0.05, power=0.8):
+        import statsmodels.api as sm
+
+        """
+        Estimate the time required to reach significance for a treatment group based on historical data.
+
+        Parameters:
+        - df: DataFrame containing historic treatment metrics.
+        - effect_size: The desired effect size (expected change due to treatment).
+        - alpha: Significance level (default is 0.05).
+        - power: Desired statistical power (default is 0.8).
+
+        Returns:
+        - Estimated time (sample size) required to reach significance.
+        """
+
+        # Calculate the standard error of the mean
+        sem = df.std() / df.count() ** 0.5
+
+        # Calculate the required sample size (time) for the desired power and alpha
+        required_sample_size = sm.stats.tt_solve_power(
+            effect_size=effect_size,
+            alpha=alpha,
+            power=power,
+            alternative='larger',  # Use 'larger' for one-sided test (increase)
+            nobs=None,  # Number of observations (sample size) is the unknown
+            ratio=1,  # Assume 1:1 allocation to treatment and control
+            alternative='two-sided'  # Use 'two-sided' for a two-sided test
+        )
+
+        return required_sample_size
 
 #  ██████╗ █████╗ ██╗   ██╗███████╗ █████╗ ██╗         ██╗███╗   ███╗██████╗  █████╗  ██████╗████████╗
 # ██╔════╝██╔══██╗██║   ██║██╔════╝██╔══██╗██║         ██║████╗ ████║██╔══██╗██╔══██╗██╔════╝╚══██╔══╝
@@ -241,11 +273,11 @@ class DataTest(Data):
     # def get_control_group():
     #     return
 
-    # def get_length_estimate():
-    #     return
 
+    
     # def get_diff_in_diff():
     #     return
+
 
     # ███████╗██╗   ██╗███╗   ██╗████████╗██╗  ██╗███████╗████████╗██╗ ██████╗     ██████╗ ██████╗ ███╗   ██╗████████╗██████╗  ██████╗ ██╗     
     # ██╔════╝╚██╗ ██╔╝████╗  ██║╚══██╔══╝██║  ██║██╔════╝╚══██╔══╝██║██╔════╝    ██╔════╝██╔═══██╗████╗  ██║╚══██╔══╝██╔══██╗██╔═══██╗██║     

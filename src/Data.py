@@ -14,6 +14,7 @@ class Data:
     """
     from .logic import print_sql_variable_logic, print_sql_formatted
     from .trend import format_data_for_plotly, get_trend_line, get_trend_bar
+    from .visualize import get_distribution_pre_post, get_outlier_scatter
 
     def __init__(self,sql_path,project,dataset,table,kpis,aggs,date_start,date_end,dim_sql_date,dim_sql_index,dim_sql_dimensions,where_clause):
         """
@@ -177,18 +178,30 @@ class Data:
 
     def get_sql_formatted(self):
         """
-        Returns a sql string with {variables} replaced with exact matched class variable names' values.
-        Please note that variables in .sql files should exactly match the names of the class variables.
-        ex: {_project} in .sql will be replaced by Data's "_project" value of "e-comm-project",
-        but {project} in .sql will not be replaced because it has no exact match class name... should be named {_project}
+        Returns a SQL string with {variables} replaced with exact matched class variable names' values.
         
+        This function takes a SQL template string and replaces placeholders like {_variable} with values from
+        the class's attributes. To match a class attribute to a placeholder, the attribute's name must
+        exactly match the placeholder name in the SQL string.
+
         Args:
-            vars(self)
-            self._sql_file_string
-            self._dim_key_list
+            self (object): The instance of the class.
+            self._sql_file_string (str): The SQL template string containing placeholders.
+            self._dim_key_list (list): A list of class attribute names that should be treated as dimension keys.
 
         Returns:
-            sql_string with Class variables replacing templated {_variables} with exact match names
+            str: A SQL string with placeholders replaced by class attribute values.
+
+        Example:
+            If the class has attributes:
+            - self._project = "e-comm-project"
+            - self._dim_key_list = ["category", "region"]
+
+            And the SQL template string is:
+            "SELECT * FROM sales_data WHERE project = {_project} AND category IN ({category})"
+
+            Calling get_sql_formatted() will return:
+            "SELECT * FROM sales_data WHERE project = 'e-comm-project' AND category IN (category, region)"
         """
         # dictionary of local class attributes and values
         dict = vars(self)
