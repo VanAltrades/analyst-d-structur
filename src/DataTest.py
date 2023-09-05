@@ -3,6 +3,7 @@ import plotly.express as px
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
+import statsmodels.api as sm
 # CausalImpact
 from causalimpact import CausalImpact
 # SyntheticControl
@@ -65,24 +66,38 @@ class DataTest(Data):
         # Format the result as "YYYY-MM-DD"
         return previous_day.strftime("%Y-%m-%d")        
     
-    def estimate_time_to_significance(df, effect_size, alpha=0.05, power=0.8):
-        import statsmodels.api as sm
-
+    def estimate_time_to_significance(self, metric, effect_size, alpha=0.05, power=0.8):
         """
         Estimate the time required to reach significance for a treatment group based on historical data.
 
         Parameters:
-        - df: DataFrame containing historic treatment metrics.
+        - df: DataFrame containing historic treatment metrics with 'date' and 'metric' columns.
         - effect_size: The desired effect size (expected change due to treatment).
         - alpha: Significance level (default is 0.05).
         - power: Desired statistical power (default is 0.8).
 
         Returns:
         - Estimated time (sample size) required to reach significance.
-        """
 
-        # Calculate the standard error of the mean
-        sem = df.std() / df.count() ** 0.5
+        Notes:
+        - The DataFrame 'df' should have two columns: 'date' and 'metric', where 'date' represents the date of observation
+        and 'metric' represents the metric of interest.
+
+        - The function estimates the required sample size (time) for the desired power, alpha, and effect size.
+        """
+        df = self._data_sql
+        
+        # pre period test data
+        date_test_prior = datetime.strptime(self._date_test_prior, "%Y-%m-%d")
+        # Convert the 'self._dim_sql_date' column in the DataFrame to datetime format
+        df[self._dim_sql_date] = pd.to_datetime(df[self._dim_sql_date])
+        df = df.loc[(df["test_group"]=="Test")&(df[self._dim_sql_date]<=date_test_prior)]
+        
+        # Calculate standard deviation and sample size from historic data
+        historic_std = df[metric].std()
+        print(f"historic std. dev. of {metric}: {historic_std}")
+        sample_size_historic = len(df)
+        print(f"historic sample size {sample_size_historic}")
 
         # Calculate the required sample size (time) for the desired power and alpha
         required_sample_size = sm.stats.tt_solve_power(
@@ -91,8 +106,8 @@ class DataTest(Data):
             power=power,
             alternative='larger',  # Use 'larger' for one-sided test (increase)
             nobs=None,  # Number of observations (sample size) is the unknown
-            ratio=1,  # Assume 1:1 allocation to treatment and control
-            alternative='two-sided'  # Use 'two-sided' for a two-sided test
+            # ratio=1,  # Assume 1:1 allocation to treatment and control
+            # alternative='two-sided'  # Use 'two-sided' for a two-sided test
         )
 
         return required_sample_size
