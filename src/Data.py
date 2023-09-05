@@ -13,8 +13,8 @@ class Data:
     An abstract Data Structure based on time-series data.
     """
     from .logic import print_sql_variable_logic, print_sql_formatted
-    from .trend import format_data_for_plotly, get_trend_line, get_trend_bar
-    from .visualize import get_distribution_pre_post, get_outlier_scatter
+    from .trend import format_data_for_plotly, get_trend_line, get_trend_bar, get_anomalous_records_std,get_anomaly_trend
+    from .visualize import get_distribution_pre_post, get_scatter_outliers
 
     def __init__(self,sql_path,project,dataset,table,kpis,aggs,date_start,date_end,dim_sql_date,dim_sql_index,dim_sql_dimensions,where_clause):
         """
