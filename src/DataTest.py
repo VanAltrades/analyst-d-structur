@@ -419,7 +419,7 @@ class DataTest(Data):
             ))
         fig.update_layout(
                 title  = {
-                    'text':f"Gap in Test v. Synthetic Control {col_metric.title()}",
+                    'text':f"Gap in Test v. Synthetic Control {col_metric.title()} | Gap between the test group and synthetic control in terms of {col_metric.title()} over time",
                     'y':0.95,
                     'x':0.5,
                 },
@@ -537,7 +537,7 @@ class DataTest(Data):
             ))
         fig.update_layout(
                 title  = {
-                    'text':"Synthetic Control Assessment",
+                    'text':f"Synthetic Control Assessment | {col_metric.title()} | How well the synthetic control model replicates the observed data",
                     'y':0.95,
                     'x':0.5,
                 },
@@ -598,7 +598,7 @@ class DataTest(Data):
 
         fig.update_layout(
                 title  = {
-                    'text':"Difference across time",
+                    'text':f"Difference across time | Observed {col_metric.title()} deviation from the synthetic control {col_metric.title()} over time",
                     'y':0.95,
                     'x':0.5,
                 },
@@ -635,6 +635,8 @@ class DataTest(Data):
         Returns:
             None
         """
+        print("Summary of the treatment effect of a change event with respect to the synthetic control")
+        print(f"Impact of the intervention or treatment on {col_metric.title()}")
         print(f"Effect of Change Event w.r.t Synthetic Control => {np.round(synth_df_timeseries.loc[synth_df_timeseries['date']==self._date_end,'Test Effect'].values[0],1)} {col_metric}")
         # return
 
