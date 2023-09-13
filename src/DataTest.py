@@ -302,7 +302,7 @@ class DataTest(Data):
     # ╚══════╝   ╚═╝   ╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝ ╚═════╝     ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚══════╝
                                                                                                                                             
 
-    def format_synthetic_control_df(self,col_metric="visits",col_breakout="breakout"):
+    def format_synthetic_control_df(self,col_date="date",col_metric="visits",col_breakout="breakout"):
         """
         Formats and prepares the dataset for synthetic control analysis.
 
@@ -328,11 +328,13 @@ class DataTest(Data):
             pandas.DataFrame: A formatted DataFrame ready for synthetic control analysis.
         """
         # use sql_path="../src/sql/data_test_synthetic_control.sql"
-        df = self._data_sql.pivot(index=col_breakout, columns=self._dim_sql_date, values=col_metric)
+        df = self._data_sql
+        df[col_date] = pd.to_datetime(df[col_date], format='%Y-%m-%d')
+        df = df.pivot(index=col_breakout, columns=self._dim_sql_date, values=col_metric)        
         df.fillna(0,inplace=True)
         return df
 
-    def get_sythethic_control_object(self,test_id="Test",col_metric="visits",col_breakout="breakout"):
+    def get_sythethic_control_object(self,test_id="Test",col_date="date",col_metric="visits",col_breakout="breakout"):
         """
         Constructs and returns a synthetic control object for causal analysis.
 
@@ -360,7 +362,8 @@ class DataTest(Data):
             SparseSC: A synthetic control object ready for causal analysis.
         """
 
-        df = self.format_synthetic_control_df(col_metric,col_breakout)
+        df = self.format_synthetic_control_df(col_date,col_metric,col_breakout)
+        # display(df.head())
         sc_new = SparseSC.fit_fast( 
             features=df.iloc[:,df.columns <= self._date_test].values,
             targets=df.iloc[:,df.columns > self._date_test].values,
@@ -368,12 +371,12 @@ class DataTest(Data):
         )
         return sc_new
 
-    def plot_synthetic_control_gap(self, synth_df, test_id="Test"):
+    def plot_synthetic_control_gap(self, col_date="date",col_metric="visits",col_breakout="breakout", test_id="Test"):
         """
         Generates a plot to visualize the gap between the test group and synthetic control in terms of the specified metric.
 
         Parameters:
-            - synth_df (pandas.DataFrame): The DataFrame containing synthetic control and test group data.
+            
             - test_id (str, optional): The identifier of the test group. Default is "Test".
 
         This method performs the following steps:
@@ -394,6 +397,8 @@ class DataTest(Data):
         Returns:
             None
         """
+        synth_df = self.format_synthetic_control_df(col_date,col_metric,col_breakout)
+
         plot_df = synth_df.loc[synth_df.index == test_id].T.reset_index(drop=False)
         plot_df["Synthetic_Control"] = synth_df.loc[synth_df.index != test_id].mean(axis=0).values
 
@@ -414,20 +419,20 @@ class DataTest(Data):
             ))
         fig.update_layout(
                 title  = {
-                    'text':"Gap in Test v. Synthetic Control Visits",
+                    'text':f"Gap in Test v. Synthetic Control {col_metric.title()}",
                     'y':0.95,
                     'x':0.5,
                 },
                 legend =  dict(y=1, x= 0.8, orientation='v'),
-                legend_title = "_legend_title_",
+                legend_title = "legend",
                 xaxis_title="Date", 
-                yaxis_title="Visits Trend",
+                yaxis_title=f"{col_metric.title()} Trend",
                 font = dict(size=15)
         )
         fig.show(renderer='notebook')
         # return
 
-    def get_synthetic_control_time_series_df(self, synth_df, test_id="Test"):
+    def get_synthetic_control_time_series_df(self, col_date="date",col_metric="visits",col_breakout="breakout", test_id="Test"):
         """
         Generates a time series DataFrame with observed and synthetic control values for the specified test group.
 
@@ -453,29 +458,44 @@ class DataTest(Data):
             pandas.DataFrame: A time series DataFrame with observed and synthetic control values.
         """
 
+        synth_df = self.format_synthetic_control_df(col_date,col_metric,col_breakout)
+        
+        date_array_as_datetime = pd.to_datetime(synth_df.columns)
+        try:
+            date_test = datetime.strptime(self._date_test, '%Y-%m-%d')
+        except:
+            date_test = datetime.datetime.strptime(self._date_test, '%Y-%m-%d')
+
         ## creating required features
-        # features = synth_df.iloc[:,synth_df.columns <= datetime.datetime.strptime(self._date_test, '%Y-%m-%d')].values
-        # targets = synth_df.iloc[:,synth_df.columns > datetime.datetime.strptime(self._date_test, '%Y-%m-%d')].values
-        features = synth_df.iloc[:,synth_df.columns <= self._date_test].values
-        targets = synth_df.iloc[:,synth_df.columns > self._date_test].values
+        features = synth_df.iloc[:,date_array_as_datetime <= date_test].values
+        targets = synth_df.iloc[:,date_array_as_datetime > date_test].values
+
+        # Check if features and targets have the same number of rows
+        if features.shape[0] != targets.shape[0]:
+            raise ValueError("Features and targets must have the same number of rows.")
+        
         treated_units = [idx for idx, val in enumerate(synth_df.index.values) if val == test_id] # [2]
 
         ## Fit fast model for fitting Synthetic controls
-        sc_model = SparseSC.fit_fast( 
-            features=features,
-            targets=targets,
-            treated_units=treated_units
-        )
+        try:
+            # Fit the model
+            sc_model = SparseSC.fit_fast(
+                features=features,
+                targets=targets,
+                treated_units=treated_units
+            )
+        except Exception as e:
+            raise ValueError("Error occurred during model fitting: {}".format(str(e)))
 
-        result = synth_df.loc[synth_df.index == test_id].T.reset_index(drop=False)
-        result.columns = ["date", "Observed"] 
-        result['Synthetic_Control'] = sc_model.predict(synth_df.values)[treated_units,:][0]
-        result['Observed'] = result['Observed'].astype(int)
-        result['Synthetic_Control'] = result['Synthetic_Control'].astype(int)
-        return result
-        
+        synth_df_timeseries = synth_df.loc[synth_df.index == test_id].T.reset_index(drop=False)
+        synth_df_timeseries.columns = ["date", "Observed"] 
+        synth_df_timeseries['Synthetic_Control'] = sc_model.predict(synth_df.values)[treated_units,:][0]
+        synth_df_timeseries['Observed'] = synth_df_timeseries['Observed'].astype(int)
+        synth_df_timeseries['Synthetic_Control'] = synth_df_timeseries['Synthetic_Control'].astype(int)
+        synth_df_timeseries['Test Effect'] = synth_df_timeseries['Observed'] - synth_df_timeseries['Synthetic_Control']
+        return synth_df_timeseries        
 
-    def plot_synthetic_control_assessment(self, result, col_metric="visits"):
+    def plot_synthetic_control_assessment(self, synth_df_timeseries, col_date="date",col_metric="visits"):
         """
         Generates a plot to assess the performance of the synthetic control model.
 
@@ -502,7 +522,7 @@ class DataTest(Data):
             None
         """
         fig = px.line(
-                data_frame = result, 
+                data_frame = synth_df_timeseries, 
                 x = "date", 
                 y = ["Observed","Synthetic_Control"], 
                 template = "plotly_dark",)
@@ -510,7 +530,7 @@ class DataTest(Data):
         fig.add_trace(
             pgo.Scatter(
                 x=[self._date_test,self._date_test],
-                y=[result.Observed.min()*0.98,result.Observed.max()*1.02], 
+                y=[synth_df_timeseries.Observed.min()*0.98,synth_df_timeseries.Observed.max()*1.02], 
                 line={
                     'dash': 'dash',
                 }, name='Change Event'
@@ -523,14 +543,14 @@ class DataTest(Data):
                 },
                 legend =  dict(y=1, x= 0.8, orientation='v'),
                 legend_title = "",
-                xaxis_title="Date", 
-                yaxis_title=f"{col_metric}",
+                xaxis_title=f"{col_date.title()}", 
+                yaxis_title=f"{col_metric.title()}",
                 font = dict(size=15)
         )
         fig.show(renderer='notebook')
         # return
 
-    def plot_synthetic_control_difference_across_time(self, result):
+    def plot_synthetic_control_difference_across_time(self, synth_df_timeseries,col_metric="impressions"):
         """
         Generates a plot to visualize the difference in metrics between observed and synthetic control values over time.
 
@@ -560,9 +580,9 @@ class DataTest(Data):
         #| code-fold: true
         #| fig-cap: Fig - Gap in Per-capita cigarette sales in California w.r.t Synthetic Control
 
-        result['Test Effect'] = result['Observed'] - result['Synthetic_Control']
+        synth_df_timeseries['Test Effect'] = synth_df_timeseries['Observed'] - synth_df_timeseries['Synthetic_Control']
         fig = px.line(
-                data_frame = result, 
+                data_frame = synth_df_timeseries, 
                 x = "date", 
                 y = "Test Effect", 
                 template = "plotly_dark",)
@@ -570,7 +590,7 @@ class DataTest(Data):
         fig.add_trace(
             pgo.Scatter(
                 x=[self._date_test,self._date_test],
-                y=[result["Test Effect"].min()*0.98,result["Test Effect"].max()*1.02], 
+                y=[synth_df_timeseries["Test Effect"].min()*0.98,synth_df_timeseries["Test Effect"].max()*1.02], 
                 line={
                     'dash': 'dash',
                 }, name='Change Event'
@@ -583,15 +603,15 @@ class DataTest(Data):
                     'x':0.5,
                 },
                 legend =  dict(y=1, x= 0.8, orientation='v'),
-                legend_title = "_legend_title_2_",
+                legend_title = "legend",
                 xaxis_title="Date", 
-                yaxis_title="Gap in Visits",
+                yaxis_title=f"Gap in {col_metric.title()}",
                 font = dict(size=15)
         )
         fig.show(renderer='notebook')
         # return
 
-    def get_synthetic_control_treatment_effect(self, result, col_metric="visits"):
+    def get_synthetic_control_treatment_effect(self, synth_df_timeseries, col_metric="visits"):
         """
         Calculates and prints the treatment effect of a change event with respect to the synthetic control.
 
@@ -615,7 +635,7 @@ class DataTest(Data):
         Returns:
             None
         """
-        print(f"Effect of Change Event w.r.t Synthetic Control => {np.round(result.loc[result[self._dim_sql_date]==self._date_end,'Test Effect'].values[0],1)} {col_metric}")
+        print(f"Effect of Change Event w.r.t Synthetic Control => {np.round(synth_df_timeseries.loc[synth_df_timeseries['date']==self._date_end,'Test Effect'].values[0],1)} {col_metric}")
         # return
 
 
