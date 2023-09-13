@@ -637,8 +637,43 @@ class DataTest(Data):
         """
         print("Summary of the treatment effect of a change event with respect to the synthetic control")
         print(f"Impact of the intervention or treatment on {col_metric.title()}")
-        print(f"Effect of Change Event w.r.t Synthetic Control => {np.round(synth_df_timeseries.loc[synth_df_timeseries['date']==self._date_end,'Test Effect'].values[0],1)} {col_metric}")
+        # print(f"Effect of Change Event w.r.t Synthetic Control => {np.round(synth_df_timeseries.loc[synth_df_timeseries['date']==self._date_end,'Test Effect'].values[0],1)} {col_metric}")         
+        
+        # Filter the dataframe to include only rows after the change date
+        df = synth_df_timeseries[synth_df_timeseries['date'] > self._date_test]
+        # Calculate the total lift
+        total_lift = df['Test Effect'].sum()
+        print(f'Effect of Change Event w.r.t Synthetic Control => Total Lift after change: {total_lift} {col_metric}')
         # return
+
+    def get_synthetic_control_diff_in_diff(self, synth_df_timeseries,col_metric="visits"):
+
+        # Split data into treatment and control groups
+        treatment_group = synth_df_timeseries[['date','Observed']]
+        control_group = synth_df_timeseries[['date','Synthetic_Control']]
+
+        # Calculate means for treatment and control groups in pre and post periods
+        treatment_pre_mean = treatment_group[(treatment_group['date']>=self._date_start)&(treatment_group['date']<=self._date_test_prior)]['Observed'].mean()
+        treatment_post_mean = treatment_group[(treatment_group['date']>=self._date_test)&(treatment_group['date']<=self._date_end)]['Observed'].mean()
+        control_pre_mean = control_group[(control_group['date']>=self._date_start)&(treatment_group['date']<=self._date_test_prior)]['Synthetic_Control'].mean()
+        control_post_mean = control_group[(control_group['date']>=self._date_test)&(control_group['date']<=self._date_end)]['Synthetic_Control'].mean()
+
+        # Calculate DiD for average of metrics
+        did_avg = (treatment_post_mean - treatment_pre_mean) - (control_post_mean - control_pre_mean)
+
+        print(f"Difference-in-Differences (Treated Group's Lift[pre/post] over Test Group) of Average {col_metric.title()}:", round(did_avg,2))
+
+        # Calculate totals/# of days for treatment and control groups in pre and post periods
+        treatment_pre_per_day = (treatment_group[(treatment_group['date']>=self._date_start)&(treatment_group['date']<=self._date_test_prior)]['Observed'].sum()/self._days_in_pre.days)
+        treatment_post_per_day = (treatment_group[(treatment_group['date']>=self._date_test)&(treatment_group['date']<=self._date_end)]['Observed'].sum()/self._days_in_pre.days)
+        control_pre_per_day = (control_group[(control_group['date']>=self._date_start)&(treatment_group['date']<=self._date_test_prior)]['Synthetic_Control'].sum()/self._days_in_pre.days)
+        control_post_per_day = (control_group[(control_group['date']>=self._date_test)&(control_group['date']<=self._date_end)]['Synthetic_Control'].sum()/self._days_in_pre.days)
+        
+        # Calculate DiD for average of metrics
+        did_per_day = (treatment_post_per_day - treatment_pre_per_day) - (control_post_per_day - control_pre_per_day)
+
+        print(f"Difference-in-Differences (Treated Group's Lift[pre/post] over Test Group) of Total {col_metric.title()} per Day :", round(did_per_day,2))
+
 
 
 
