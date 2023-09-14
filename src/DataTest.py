@@ -304,28 +304,29 @@ class DataTest(Data):
 
     def format_synthetic_control_df(self,col_date="date",col_metric="visits",col_breakout="breakout"):
         """
-        Formats and prepares the dataset for synthetic control analysis.
+        Format the input DataFrame for synthetic control analysis.
+
+        This function takes an input DataFrame containing historical data with specific columns
+        for date, metric, and breakout information. It prepares the DataFrame for synthetic
+        control analysis by performing the following steps:
+
+        1. Converts the date column to a datetime format to ensure proper date handling.
+        2. Reshapes the DataFrame into a pivot table with breakout values as rows, dates as
+        columns, and metric values as the data.
+        3. Fills missing values with zeros, ensuring that the resulting DataFrame is suitable
+        for the synthetic control analysis.
 
         Parameters:
-            - col_metric (str, optional): The name of the metric column to use in the analysis. Default is "visits".
-            - col_breakout (str, optional): The name of the breakout (dimension) column to use. Default is "breakout".
-
-        This method performs the following steps:
-        1. Pivots the dataset to create a matrix where rows represent different breakouts (dimensions),
-        columns represent dates, and the values are the specified metric.
-        2. Fills any missing values (NaN) in the resulting matrix with zeros to ensure a complete dataset.
-        3. Returns the formatted DataFrame suitable for use in synthetic control analysis.
-
-        The purpose of this method is to transform the data into a format that is compatible with synthetic control
-        analysis, which typically requires data organized in a matrix-like structure. This analysis technique is used
-        to estimate the counterfactual effect of an intervention or treatment by comparing it to a weighted combination
-        of similar units that did not receive the treatment.
-
-        Note:
-        - Ensure that the dataset (self._data_sql) and relevant column names are properly set before calling this method.
+            - col_date (str): Name of the column containing date information.
+            - col_metric (str): Name of the column containing metric data.
+            - col_breakout (str): Name of the column containing breakout information.
 
         Returns:
-            pandas.DataFrame: A formatted DataFrame ready for synthetic control analysis.
+            - df (pd.DataFrame): A formatted DataFrame suitable for synthetic control analysis.
+            It has breakout values as rows, dates as columns, and metric values as data.
+
+        Example Usage:
+            formatted_data = format_synthetic_control_df(df, col_date="date", col_metric="visits", col_breakout="breakout")
         """
         # use sql_path="../src/sql/data_test_synthetic_control.sql"
         df = self._data_sql
@@ -373,29 +374,31 @@ class DataTest(Data):
 
     def plot_synthetic_control_gap(self, col_date="date",col_metric="visits",col_breakout="breakout", test_id="Test"):
         """
-        Generates a plot to visualize the gap between the test group and synthetic control in terms of the specified metric.
+        Generate and display a plot illustrating the gap between the test group and the synthetic control
+        in terms of a specified metric over time.
+
+        This function takes a formatted synthetic control DataFrame, identifies the treated unit based on the
+        specified test ID, and calculates the synthetic control values for the treated unit and the metric
+        specified. It then creates a plot to visualize the time series of the test group's metric values
+        alongside the synthetic control's metric values, emphasizing any gaps or changes.
 
         Parameters:
-            
-            - test_id (str, optional): The identifier of the test group. Default is "Test".
-
-        This method performs the following steps:
-        1. Selects data from the `synth_df` DataFrame corresponding to the test group (`test_id`) and the synthetic control.
-        2. Calculates the mean of the synthetic control values for each date.
-        3. Creates a line plot using Plotly Express (`px.line`) to visualize the trends of the test group and synthetic control.
-        4. Adds a dashed vertical line to indicate the change event date (intervention date).
-        5. Customizes the plot title, legend, axis labels, and font size.
-        6. Displays the generated plot.
-
-        The purpose of this method is to provide a visual representation of the gap between the test group and synthetic control
-        in terms of a specified metric over time. This helps in understanding the impact of an intervention or treatment on the
-        test group compared to the synthetic control.
-
-        Note:
-        - Ensure that the `synth_df` DataFrame and relevant parameters are properly set before calling this method.
+            - col_date (str): Name of the date column in the input DataFrame.
+            - col_metric (str): Name of the metric column in the input DataFrame.
+            - col_breakout (str): Name of the breakout column in the input DataFrame.
+            - test_id (str): Identifier for the unit under test in the input DataFrame.
 
         Returns:
-            None
+            - None: The function displays the plot but does not return a value.
+
+        Note:
+        The function relies on internal attributes like _dim_sql_date and _date_test, which are not explicitly
+        defined within the function but are expected to be set elsewhere in the class or object.
+
+        Example Usage:
+        To visualize the gap in "visits" metric between the "Test" group and its synthetic control over time,
+        you can call the function as follows:
+        obj.plot_synthetic_control_gap(col_metric="visits", test_id="Test")
         """
         synth_df = self.format_synthetic_control_df(col_date,col_metric,col_breakout)
 
@@ -434,28 +437,47 @@ class DataTest(Data):
 
     def get_synthetic_control_time_series_df(self, col_date="date",col_metric="visits",col_breakout="breakout", test_id="Test"):
         """
-        Generates a time series DataFrame with observed and synthetic control values for the specified test group.
+        Generate a time series DataFrame for synthetic control analysis.
 
+        This function takes a DataFrame with time series data and generates a time series DataFrame
+        for synthetic control analysis. It assumes that the input DataFrame has a specified date
+        column, a metric column (e.g., visits), and a breakout column to identify different units.
+        The function performs the following steps:
+
+        1. Formats the input DataFrame to ensure it is suitable for synthetic control analysis.
+        2. Separates the data into features and targets based on a specified test date.
+            The choice of using the data prior to the change date as "features" and the data after the change date as "targets" in the synthetic control analysis serves a specific purpose in this context. This approach is designed to create a meaningful basis for comparison and estimation of treatment effects. Here's why this division is commonly made:
+            Causal Inference:
+                The primary goal of synthetic control analysis is to estimate the causal effect of a treatment or intervention applied to a specific unit (the treated unit). You want to answer the question: "What would have happened to the treated unit if it had not received the treatment?"
+                To answer this question, you need to establish a counterfactual scenario. That is, you need to construct a synthetic version of the treated unit's post-treatment behavior based on how similar units behaved before and after their own "change date" (which could be a policy change, intervention, event, etc.).
+            Creating a Counterfactual:
+                By using data from similar units (features) before the change date as "features," you are essentially constructing a historical behavior pattern of the treated unit under the assumption that it was not treated. This is your counterfactual scenario.
+                The "targets" consist of the treated unit's actual data after the change date, which represents the observed outcome after the treatment.
+            Estimating Treatment Effects:
+                After fitting the synthetic control model, you generate a synthetic control time series for the treated unit using the features and learned model weights. This synthetic control time series represents what would have happened to the treated unit's metric if it had not been treated.
+                By comparing the synthetic control time series (counterfactual) with the observed data of the treated unit (the actual outcome), you can estimate the treatment effect. The difference between the two, often referred to as the "Test Effect," quantifies the impact of the treatment on the treated unit.
+            In summary, separating the data into features (pre-change date) and targets (post-change date) is a critical step in the synthetic control analysis. It allows you to construct a counterfactual scenario and estimate the causal effect of the treatment by comparing what actually happened to what would have happened in the absence of the treatment.
+        3. Checks if the number of features and targets have the same number of rows.
+        4. Identifies the treated unit (unit under test) based on a specified test ID.
+        5. Fits a fast synthetic control model to the features and targets.
+        6. Creates a time series DataFrame containing observed and synthetic control values
+            along with the test effect (the difference between observed and synthetic control).
+            
         Parameters:
-            - synth_df (pandas.DataFrame): The DataFrame containing synthetic control and test group data.
-            - test_id (str, optional): The identifier of the test group. Default is "Test".
-
-        This method performs the following steps:
-        1. Extracts features and targets from the `synth_df` DataFrame based on the specified test date.
-        2. Constructs a synthetic control model using the SparseSC.fit_fast() method, considering the specified test group.
-        3. Creates a time series DataFrame with columns for date, observed values, and synthetic control values.
-        4. Populates the time series DataFrame with observed and synthetic control values.
-        5. Converts observed and synthetic control values to integer data types.
-        6. Returns the resulting time series DataFrame.
-
-        The purpose of this method is to provide a time series representation of observed and synthetic control values for
-        the specified test group. This allows for visualizing and comparing the actual and synthetic control trends over time.
-
-        Note:
-        - Ensure that the `synth_df` DataFrame and relevant parameters are properly set before calling this method.
+            - col_date (str): Name of the date column in the input DataFrame.
+            - col_metric (str): Name of the metric column in the input DataFrame.
+            - col_breakout (str): Name of the breakout column in the input DataFrame.
+            - test_id (str): Identifier for the unit under test in the input DataFrame.
 
         Returns:
-            pandas.DataFrame: A time series DataFrame with observed and synthetic control values.
+            - synth_df_timeseries (pd.DataFrame): A time series DataFrame containing columns
+                'date' (date values), 'Observed' (observed metric values), 'Synthetic_Control'
+                (synthetic control metric values), and 'Test Effect' (the difference between
+                observed and synthetic control).
+
+        Raises:
+            - ValueError: If there is an issue with model fitting or if features and targets
+                have different numbers of rows.
         """
 
         synth_df = self.format_synthetic_control_df(col_date,col_metric,col_breakout)
@@ -467,8 +489,8 @@ class DataTest(Data):
             date_test = datetime.datetime.strptime(self._date_test, '%Y-%m-%d')
 
         ## creating required features
-        features = synth_df.iloc[:,date_array_as_datetime <= date_test].values
-        targets = synth_df.iloc[:,date_array_as_datetime > date_test].values
+        features = synth_df.iloc[:,date_array_as_datetime <= date_test].values # pre
+        targets = synth_df.iloc[:,date_array_as_datetime > date_test].values # post
 
         # Check if features and targets have the same number of rows
         if features.shape[0] != targets.shape[0]:
@@ -478,7 +500,10 @@ class DataTest(Data):
 
         ## Fit fast model for fitting Synthetic controls
         try:
-            # Fit the model
+            # Fit the model:
+            # During training, the model tries to find the right combination of weights for the features 
+            # so that when you multiply each feature's data by its weight and sum them up, 
+            # you get a synthetic series that closely matches the treated unit's historical data.
             sc_model = SparseSC.fit_fast(
                 features=features,
                 targets=targets,
@@ -487,8 +512,15 @@ class DataTest(Data):
         except Exception as e:
             raise ValueError("Error occurred during model fitting: {}".format(str(e)))
 
+        # create a time series DataFrame for the treated unit.
         synth_df_timeseries = synth_df.loc[synth_df.index == test_id].T.reset_index(drop=False)
         synth_df_timeseries.columns = ["date", "Observed"] 
+        # Calculate the Synthetic Control value for the treated unit at each time point.
+        # Here, we use the trained synthetic control model (sc_model) to predict the synthetic
+        # control values for the treated unit. The result is a time series of synthetic control
+        # values. [treated_units,:] is used to select the row(s) corresponding to the treated unit,
+        # and [0] is used to extract the first (and presumably only) row of synthetic control values
+        # for the treated unit and assign it to the 'Synthetic_Control' column in synth_df_timeseries.
         synth_df_timeseries['Synthetic_Control'] = sc_model.predict(synth_df.values)[treated_units,:][0]
         synth_df_timeseries['Observed'] = synth_df_timeseries['Observed'].astype(int)
         synth_df_timeseries['Synthetic_Control'] = synth_df_timeseries['Synthetic_Control'].astype(int)
@@ -497,29 +529,31 @@ class DataTest(Data):
 
     def plot_synthetic_control_assessment(self, synth_df_timeseries, col_date="date",col_metric="visits"):
         """
-        Generates a plot to assess the performance of the synthetic control model.
+        Plot the assessment of the synthetic control model's performance.
+
+        This function generates a line plot to visually assess how well the synthetic control
+        model replicates the observed data. It takes as input a DataFrame (`synth_df_timeseries`)
+        containing time series data, where columns 'date,' 'Observed,' and 'Synthetic_Control'
+        represent the date, observed metric values, and synthetic control metric values,
+        respectively.
 
         Parameters:
-            - result (pandas.DataFrame): A time series DataFrame containing observed and synthetic control values.
-            - col_metric (str, optional): The name of the metric column to visualize. Default is "visits".
-
-        This function performs the following steps:
-        1. Creates a line plot using Plotly Express (`px.line`) to visualize the observed and synthetic control values
-        over time.
-        2. Adds a dashed vertical line to indicate the change event date (intervention date).
-        3. Customizes the plot title, legend, axis labels, and font size.
-        4. Displays the generated plot for assessing the performance of the synthetic control model.
-
-        The purpose of this function is to provide a visual assessment of how well the synthetic control model replicates
-        the observed data. It allows for evaluating the effectiveness of the model in capturing the impact of an intervention
-        or treatment on the specified metric.
-
-        Note:
-        - Ensure that the `result` DataFrame containing observed and synthetic control values is properly prepared
-        before calling this function.
+            - synth_df_timeseries (pd.DataFrame): A DataFrame containing time series data for
+            observed and synthetic control metrics.
+            - col_date (str): Name of the date column in the DataFrame (default: "date").
+            - col_metric (str): Name of the metric column in the DataFrame (default: "visits").
 
         Returns:
-            None
+            - None
+
+        This function generates a line plot using Plotly (px.line) to visualize the observed and
+        synthetic control metrics over time. It also adds a vertical dashed line to indicate
+        the date of a change event, typically representing the start of a treatment or
+        intervention.
+
+        The plot's title, axis labels, legend placement, and font size are customized for
+        readability. The resulting plot is displayed in a Jupyter Notebook using the
+        'notebook' renderer.
         """
         fig = px.line(
                 data_frame = synth_df_timeseries, 
@@ -613,27 +647,29 @@ class DataTest(Data):
 
     def get_synthetic_control_treatment_effect(self, synth_df_timeseries, col_metric="visits"):
         """
-        Calculates and prints the treatment effect of a change event with respect to the synthetic control.
+        Calculate and summarize the treatment effect of a change event with respect to the synthetic control.
 
+        This function takes a time series DataFrame generated from a synthetic control analysis
+        (usually containing observed, synthetic control, and test effect columns), and calculates
+        and summarizes the treatment effect of a change event with respect to the synthetic control.
+        
         Parameters:
-            - result (pandas.DataFrame): A time series DataFrame containing observed and synthetic control values.
-            - col_metric (str, optional): The name of the metric column for which the treatment effect is calculated.
-            Default is "visits".
-
-        This function performs the following steps:
-        1. Extracts the treatment effect value at the end of the time series, which represents the impact of a change event.
-        2. Rounds the treatment effect value to one decimal place for clarity.
-        3. Prints the treatment effect along with the specified metric column.
-
-        The purpose of this function is to provide a summary of the treatment effect of a change event with respect to the
-        synthetic control. It calculates and presents the impact of the intervention or treatment on the specified metric.
-
-        Note:
-        - Ensure that the `result` DataFrame containing observed and synthetic control values is properly prepared
-        before calling this function.
+            - synth_df_timeseries (pd.DataFrame): Time series DataFrame containing columns
+            'date' (date values), 'Observed' (observed metric values), 'Synthetic_Control'
+            (synthetic control metric values), and 'Test Effect' (the difference between
+            observed and synthetic control).
+            - col_metric (str): Name of the metric for which the treatment effect is calculated.
 
         Returns:
             None
+
+        Prints:
+            - A summary of the treatment effect of the change event in terms of the specified metric.
+            - The total lift in the specified metric after the change event.
+
+        The function filters the DataFrame to include only rows after the change date and calculates
+        the total lift, which represents the cumulative difference between the observed metric
+        and the synthetic control metric after the change event.
         """
         print("Summary of the treatment effect of a change event with respect to the synthetic control")
         print(f"Impact of the intervention or treatment on {col_metric.title()}")
@@ -647,7 +683,33 @@ class DataTest(Data):
         # return
 
     def get_synthetic_control_diff_in_diff(self, synth_df_timeseries,col_metric="visits"):
+        """
+        Perform a Difference-in-Differences (DiD) analysis on Synthetic Control time series data.
 
+        This function takes a time series DataFrame generated from a Synthetic Control analysis
+        and performs a DiD analysis to assess the impact of a treatment or intervention on a
+        specific metric. The DiD analysis involves comparing the behavior of the treated group
+        (the unit under test) and the synthetic control group (similar units) before and after
+        the treatment.
+
+        Parameters:
+            - synth_df_timeseries (pd.DataFrame): Time series DataFrame containing columns
+            'date' (date values), 'Observed' (observed metric values), and 'Synthetic_Control'
+            (synthetic control metric values).
+            - col_metric (str): Name of the metric being analyzed (e.g., 'visits').
+
+        Prints:
+            - Difference-in-Differences (DiD) analysis results:
+            - DiD of Average Metric: The change in the average metric value for the treated group
+                compared to the synthetic control group before and after the treatment.
+            - DiD of Total Metric per Day: The change in the total metric value per day for the
+                treated group compared to the synthetic control group before and after the treatment.
+
+        Note:
+            - The function assumes that the Synthetic Control time series has been properly
+            generated with the treated unit and synthetic control values.
+
+        """
         # Split data into treatment and control groups
         treatment_group = synth_df_timeseries[['date','Observed']]
         control_group = synth_df_timeseries[['date','Synthetic_Control']]
