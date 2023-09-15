@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 import statsmodels.api as sm
+from sklearn.model_selection import train_test_split
 # CausalImpact
 from causalimpact import CausalImpact
 # SyntheticControl
@@ -422,7 +423,7 @@ class DataTest(Data):
             ))
         fig.update_layout(
                 title  = {
-                    'text':f"Gap in Test v. Synthetic Control {col_metric.title()} | Gap between the test group and synthetic control in terms of {col_metric.title()} over time",
+                    'text':f"Gap in Test v. Control {col_metric.title()} | Gap between the test group and control group in terms of {col_metric.title()} over time",
                     'y':0.95,
                     'x':0.5,
                 },
@@ -435,7 +436,7 @@ class DataTest(Data):
         fig.show(renderer='notebook')
         # return
 
-    def get_synthetic_control_time_series_df(self, col_date="date",col_metric="visits",col_breakout="breakout", test_id="Test"):
+    def get_synthetic_control_time_series_df(self, fit_fast=True,col_date="date",col_metric="visits",col_breakout="breakout", test_id="Test"):
         """
         Generate a time series DataFrame for synthetic control analysis.
 
@@ -504,11 +505,31 @@ class DataTest(Data):
             # During training, the model tries to find the right combination of weights for the features 
             # so that when you multiply each feature's data by its weight and sum them up, 
             # you get a synthetic series that closely matches the treated unit's historical data.
-            sc_model = SparseSC.fit_fast(
-                features=features,
-                targets=targets,
-                treated_units=treated_units
-            )
+            if fit_fast is True:
+                sc_model = SparseSC.fit_fast(
+                    features=features,
+                    targets=targets,
+                    treated_units=treated_units
+                )
+            else:
+                # Split your data into a training set and a test set
+                X_train, X_test, y_train, y_test = train_test_split(features, targets, test_size=0.2, random_state=42)
+
+                # Fit your model on the training set
+                sc_model = SparseSC.fit(
+                    features=X_train,
+                    targets=y_train,
+                    treated_units=treated_units
+                )
+                # Evaluate your model on the test set
+                score = sc_model.score(X_test, y_test)
+
+                # sc_model = SparseSC.fit(
+                #     features=features,
+                #     targets=targets,
+                #     treated_units=treated_units,
+                #     n_splits=5  # Use 5-fold cross-validation... update to the number of splits in your example
+                # )
         except Exception as e:
             raise ValueError("Error occurred during model fitting: {}".format(str(e)))
 
@@ -720,6 +741,13 @@ class DataTest(Data):
         control_pre_mean = control_group[(control_group['date']>=self._date_start)&(treatment_group['date']<=self._date_test_prior)]['Synthetic_Control'].mean()
         control_post_mean = control_group[(control_group['date']>=self._date_test)&(control_group['date']<=self._date_end)]['Synthetic_Control'].mean()
 
+        # Synthetic Control Lift
+        control_lift = control_post_mean - control_pre_mean
+        print("\n",f"Synthetic Control Pre/Post Lift of Average {col_metric.title()}: {round(control_lift,2)}")
+        # Test Lift 
+        test_lift = treatment_post_mean - treatment_pre_mean
+        print(f"Treatment Group Pre/Post Lift of Average {col_metric.title()}: {round(test_lift,2)}")
+
         # Calculate DiD for average of metrics
         did_avg = (treatment_post_mean - treatment_pre_mean) - (control_post_mean - control_pre_mean)
 
@@ -731,10 +759,17 @@ class DataTest(Data):
         control_pre_per_day = (control_group[(control_group['date']>=self._date_start)&(treatment_group['date']<=self._date_test_prior)]['Synthetic_Control'].sum()/self._days_in_pre.days)
         control_post_per_day = (control_group[(control_group['date']>=self._date_test)&(control_group['date']<=self._date_end)]['Synthetic_Control'].sum()/self._days_in_pre.days)
         
+        # Synthetic Control Lift
+        control_lift = control_post_per_day - control_pre_per_day
+        print("\n",f"Synthetic Control Pre/Post Lift: {round(control_lift,2)} {col_metric.title()} per Day")
+        # Test Lift 
+        test_lift = treatment_post_per_day - treatment_pre_per_day
+        print(f"Treatment Group Pre/Post Lift: {round(test_lift,2)} {col_metric.title()} per Day")
+
         # Calculate DiD for average of metrics
         did_per_day = (treatment_post_per_day - treatment_pre_per_day) - (control_post_per_day - control_pre_per_day)
 
-        print(f"Difference-in-Differences (Treated Group's Lift[pre/post] over Test Group) of Total {col_metric.title()} per Day :", round(did_per_day,2))
+        print(f"Difference-in-Differences (Treated Group's Lift[pre/post] over Test Group) of Total {col_metric.title()} per Day : {round(did_per_day,2)}" )
 
 
 
