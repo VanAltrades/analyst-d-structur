@@ -66,25 +66,59 @@ class DataTest(Data):
         previous_day = date_test - one_day
         # Format the result as "YYYY-MM-DD"
         return previous_day.strftime("%Y-%m-%d")        
-    
-    def estimate_time_to_significance(self, metric, effect_size, alpha=0.05, power=0.8):
+
+    def get_historic_metric_mean(self, metric):
+        # print total, show trend
+        df = self._data_sql
+        
+        # pre period test data
+        date_test_prior = datetime.strptime(self._date_test_prior, "%Y-%m-%d")
+        # Convert the 'self._dim_sql_date' column in the DataFrame to datetime format
+        df[self._dim_sql_date] = pd.to_datetime(df[self._dim_sql_date])
+        df = df.loc[(df["test_group"]=="Test")&(df[self._dim_sql_date]<=date_test_prior)]
+        
+        historic_mean = df[metric].mean() 
+        print(f"historic mean of {metric}: {historic_mean}")
+
+    def get_historic_metric_std(self, metric):
+        # print total, show trend
+        df = self._data_sql
+        
+        # pre period test data
+        date_test_prior = datetime.strptime(self._date_test_prior, "%Y-%m-%d")
+        # Convert the 'self._dim_sql_date' column in the DataFrame to datetime format
+        df[self._dim_sql_date] = pd.to_datetime(df[self._dim_sql_date])
+        df = df.loc[(df["test_group"]=="Test")&(df[self._dim_sql_date]<=date_test_prior)]
+        
+        historic_std = df[metric].std() # variability
+        print(f"historic std. dev. of {metric}: {historic_std}")
+
+        return
+
+    def estimate_time_to_significance(self, metric, post_change_mean, alpha=0.05, power=0.8):
         """
-        Estimate the time required to reach significance for a treatment group based on historical data.
+        Estimate the time (in terms of sample size) required to achieve statistical significance
+        for a hypothesis test comparing a post-change mean to a historic mean.
 
         Parameters:
-        - df: DataFrame containing historic treatment metrics with 'date' and 'metric' columns.
-        - effect_size: The desired effect size (expected change due to treatment).
-        - alpha: Significance level (default is 0.05).
-        - power: Desired statistical power (default is 0.8).
+        - self: The instance of the class containing the data and configuration.
+        - metric (str): The metric for which significance is being estimated.
+        - post_change_mean (float): The expected post-change mean value.
+        - alpha (float, optional): The significance level, typically set to 0.05.
+        - power (float, optional): The desired statistical power, typically set to 0.8.
 
         Returns:
-        - Estimated time (sample size) required to reach significance.
+        - required_sample_size (float): The estimated sample size required to achieve significance.
 
-        Notes:
-        - The DataFrame 'df' should have two columns: 'date' and 'metric', where 'date' represents the date of observation
-        and 'metric' represents the metric of interest.
+        This function calculates the required sample size needed to detect a significant change in
+        a given metric by performing a hypothesis test. It uses historic data to estimate the
+        standard deviation, mean, and sample size, and then calculates the effect size. With the
+        effect size, significance level (alpha), and desired power, it computes the required sample
+        size using a power analysis formula. The result is the estimated number of samples or
+        observations needed to detect a meaningful change in the metric.
 
-        - The function estimates the required sample size (time) for the desired power, alpha, and effect size.
+        Note: The function assumes daily data collection and a one-sided test for an increase in
+        the metric (alternative='larger').
         """
         df = self._data_sql
         
@@ -95,10 +129,15 @@ class DataTest(Data):
         df = df.loc[(df["test_group"]=="Test")&(df[self._dim_sql_date]<=date_test_prior)]
         
         # Calculate standard deviation and sample size from historic data
-        historic_std = df[metric].std()
+        historic_std = df[metric].std() # variability
         print(f"historic std. dev. of {metric}: {historic_std}")
+        historic_mean = df[metric].mean() 
+        print(f"historic mean of {metric}: {historic_mean}")
         sample_size_historic = len(df)
         print(f"historic sample size {sample_size_historic}")
+
+        # Calculate effect size
+        effect_size = (historic_mean - post_change_mean) / historic_std
 
         # Calculate the required sample size (time) for the desired power and alpha
         required_sample_size = sm.stats.tt_solve_power(
@@ -110,7 +149,12 @@ class DataTest(Data):
             # ratio=1,  # Assume 1:1 allocation to treatment and control
             # alternative='two-sided'  # Use 'two-sided' for a two-sided test
         )
+        print(f"required sample size: {required_sample_size}")
 
+        # Estimate the required monitoring duration (in days)
+        # Assuming you collect data daily
+        days_required = np.ceil(required_sample_size)
+        print(f"{days_required} days required")
         return required_sample_size
 
 #  ██████╗ █████╗ ██╗   ██╗███████╗ █████╗ ██╗         ██╗███╗   ███╗██████╗  █████╗  ██████╗████████╗
@@ -200,7 +244,7 @@ class DataTest(Data):
         self._data_pre = pre_df
         self._data_post = post_df
 
-    def get_data_pre_post_comparison(self, dimension_column: str, metric_column : str, metric_column_agg : str = 'sum'):
+    def get_data_pre_post_comparison(self, dimension_column: str, metric_column : str, metric_column_agg : str = 'sum', per_day=False):
         """
         Performs data comparison and analysis between pre-test and post-test periods based on specified dimensions and metrics.
 
@@ -248,7 +292,14 @@ class DataTest(Data):
 
 
         # Merge the pre-aggregated, post-aggregated, and percent change DataFrames
-        result_df = pre_grouped_by_dimension.merge(post_grouped_by_dimension, left_index=True, right_index=True, suffixes=('_pre', '_post'))
+        result_df = pre_grouped_by_dimension.merge(post_grouped_by_dimension, how='outer', left_index=True, right_index=True, suffixes=('_pre', '_post'))
+
+        if per_day is False:
+            pass
+        else:
+            result_df[f'{metric_column}_pre'] = (result_df[f'{metric_column}_pre']/self._days_in_pre.days)
+            result_df[f'{metric_column}_post'] = (result_df[f'{metric_column}_post']/self._days_in_post.days)
+
         # Calculate differences between pre and post columns
         result_df['delta'] = result_df[f'{metric_column}_post'] - result_df[f'{metric_column}_pre']
 

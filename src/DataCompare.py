@@ -259,7 +259,7 @@ class DataCompare(Data):
 
 
         # Merge the pre-aggregated, post-aggregated, and percent change DataFrames
-        result_df = pre_grouped_by_dimension.merge(post_grouped_by_dimension, left_index=True, right_index=True, suffixes=('_pre', '_post'))
+        result_df = pre_grouped_by_dimension.merge(post_grouped_by_dimension, left_index=True, right_index=True, suffixes=('_pre', '_post'), how="outer")
         # Calculate differences between pre and post columns
         result_df['delta'] = result_df[f'{metric_column}_post'] - result_df[f'{metric_column}_pre']
 

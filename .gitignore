@@ -1,5 +1,6 @@
 secret.json
-cad_test/
+zoro_tests/
+zoro_reports/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
