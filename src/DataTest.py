@@ -5,6 +5,8 @@ import pandas as pd
 from datetime import datetime, timedelta
 import statsmodels.api as sm
 from sklearn.model_selection import train_test_split
+from scipy import stats
+
 # CausalImpact
 from causalimpact import CausalImpact
 # SyntheticControl
@@ -95,7 +97,7 @@ class DataTest(Data):
 
         return
 
-    def estimate_time_to_significance(self, metric, post_change_mean, alpha=0.05, power=0.8):
+    def estimate_time_to_significance(self, metric, post_change_mean, alpha=0.05, power=0.8, alternative='two-sided'):
         """
         Estimate the time (in terms of sample size) required to achieve statistical significance
         for a hypothesis test comparing a post-change mean to a historic mean.
@@ -120,13 +122,20 @@ class DataTest(Data):
         Note: The function assumes daily data collection and a one-sided test for an increase in
         the metric (alternative='larger').
         """
+        self._data_sql[self._dim_sql_date] = pd.to_datetime(self._data_sql[self._dim_sql_date])
+        self._date_test_prior = pd.to_datetime(self._date_test_prior)
+        
+        pre_df = self._data_sql[self._data_sql[self._dim_sql_date] <= self._date_test_prior]
+        post_df = self._data_sql[self._data_sql[self._dim_sql_date] >= self._date_test]
+
         df = self._data_sql
         
         # pre period test data
-        date_test_prior = datetime.strptime(self._date_test_prior, "%Y-%m-%d")
+        # date_test_prior = datetime.strptime(self._date_test_prior, "%Y-%m-%d")
+        
         # Convert the 'self._dim_sql_date' column in the DataFrame to datetime format
         df[self._dim_sql_date] = pd.to_datetime(df[self._dim_sql_date])
-        df = df.loc[(df["test_group"]=="Test")&(df[self._dim_sql_date]<=date_test_prior)]
+        df = df.loc[(df["test_group"]=="Test")&(df[self._dim_sql_date]<=self._date_test_prior)]
         
         # Calculate standard deviation and sample size from historic data
         historic_std = df[metric].std() # variability
@@ -142,10 +151,11 @@ class DataTest(Data):
         # Calculate the required sample size (time) for the desired power and alpha
         required_sample_size = sm.stats.tt_solve_power(
             effect_size=effect_size,
-            alpha=alpha,
-            power=power,
-            alternative='larger',  # Use 'larger' for one-sided test (increase)
+            alpha=alpha,        # Significance level (e.g., 0.05 for 95% confidence)
+            power=power,        # Desired power (e.g., 0.8 for 80% power)
+            alternative=alternative,  # Use 'larger' for one-sided test (increase) or 'two-sided' for increase or decrease
             nobs=None,  # Number of observations (sample size) is the unknown
+            # ratio=len(post_df) / len(pre_df)
             # ratio=1,  # Assume 1:1 allocation to treatment and control
             # alternative='two-sided'  # Use 'two-sided' for a two-sided test
         )
@@ -155,7 +165,39 @@ class DataTest(Data):
         # Assuming you collect data daily
         days_required = np.ceil(required_sample_size)
         print(f"{days_required} days required")
+
+        # # Calculate the required test duration in days
+        # # Divide by daily sample size to get the number of days required
+        # daily_sample_size = len(pre_df)
+        # required_duration_days = np.ceil(required_sample_size / daily_sample_size) # By dividing the required_sample_size by the daily_sample_size, you can estimate how many days you should run your test to collect the necessary data to reach statistical significance. The result, required_duration_days, gives you an estimate of the test duration in days.
+
+        # print(f"Estimated test duration in days: {required_duration_days} (when dividing required_sample_size by days in pre period)")
+
         return required_sample_size
+    
+    def ttest_significance_level(self, metric, alpha = 0.05):
+        # must use daily df
+
+        pre_df = self._data_sql[self._data_sql[self._dim_sql_date] <= self._date_test_prior]
+        post_df = self._data_sql[self._data_sql[self._dim_sql_date] >= self._date_test]
+
+        pre_test_mean_metric = pre_df[f'{metric}'].mean()
+        pre_test_std_metric = pre_df[f'{metric}'].std()
+        post_test_mean_metric = post_df[f'{metric}'].mean()
+        post_test_std_metric = post_df[f'{metric}'].std()
+
+        # Perform a t-test for metric
+        t_stat_metric, p_value_metric = stats.ttest_ind_from_stats(
+            pre_test_mean_metric, pre_test_std_metric, len(pre_df),
+            post_test_mean_metric, post_test_std_metric, len(post_df)
+        )
+
+        # Check if the p-values are less than the significance level
+        if p_value_metric < alpha:
+            print("Post-period data is statistically different. Stop the test.")
+        else:
+            print("Continue the test.")
+
 
 #  ██████╗ █████╗ ██╗   ██╗███████╗ █████╗ ██╗         ██╗███╗   ███╗██████╗  █████╗  ██████╗████████╗
 # ██╔════╝██╔══██╗██║   ██║██╔════╝██╔══██╗██║         ██║████╗ ████║██╔══██╗██╔══██╗██╔════╝╚══██╔══╝
